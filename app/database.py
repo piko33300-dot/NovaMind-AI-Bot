@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 from app.config import settings
-from app.models import Base
+from app.service_layer import Base
 
 
 def build_engine(database_url: str):

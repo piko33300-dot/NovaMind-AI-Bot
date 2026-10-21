@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.bot.handlers import router
-from app.config import settings
+from app.config import settings, validate_settings
 from app.database import init_db
 
 
@@ -28,21 +28,17 @@ def service_status(service_name: str) -> tuple[bool, str]:
     key_names = _SERVICE_API_KEYS.get(service_name, ())
     if not key_names:
         return False, f"{service_name} غير مهيأة: لا يوجد تعريف خدمة."
-
     for key_name in key_names:
         env_value = getattr(settings, key_name, "")
         if env_value:
             return True, f"الخدمة {service_name} جاهزة."
-
     return False, (
         f"غير مهيأة: أضف {', '.join(key_names)} إلى متغيرات البيئة أو استخدم مفتاح API صالح."
     )
 
 
 async def main() -> None:
-    if not settings.TELEGRAM_BOT_TOKEN:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN غير موجود. أضفه إلى متغيرات البيئة قبل التشغيل.")
-
+    validate_settings()
     await init_db()
 
     bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode="HTML")

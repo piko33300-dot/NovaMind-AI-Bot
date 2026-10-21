@@ -55,5 +55,13 @@ class Settings:
 settings = Settings()
 
 
+def validate_settings() -> None:
+    if not settings.TELEGRAM_BOT_TOKEN:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN غير موجود. أضفه إلى متغيرات البيئة قبل التشغيل.")
+    if settings.DATABASE_URL:
+        return
+    raise RuntimeError("DATABASE_URL غير موجود. أضفه إلى متغيرات البيئة قبل التشغيل.")
+
+
 def is_admin_chat_id(chat_id: int) -> bool:
     return chat_id in settings.ADMIN_TG_IDS

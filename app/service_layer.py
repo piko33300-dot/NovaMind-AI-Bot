@@ -148,12 +148,25 @@ async def get_remaining_daily_credit(session: AsyncSession, user_id: int) -> int
     return max(0, daily_limit - used)
 
 
-async def get_service_cost(service_name: str) -> int:
-    return int(settings.SERVICE_COSTS.get(service_name, 0))
+async def get_service_cost(session: AsyncSession, service_name: str) -> int:
+    if service_name in settings.SERVICE_COSTS:
+        return int(settings.SERVICE_COSTS[service_name])
+    stored = int(await get_system_value(session, f"service_cost:{service_name}", "0"))
+    return stored if stored > 0 else 0
+
+
+async def is_service_enabled(session: AsyncSession, service_name: str) -> bool:
+    enabled = await get_system_value(session, f"service_enabled:{service_name}", "1")
+    return str(enabled).lower() not in {"0", "false", "off", "no"}
 
 
 async def can_use_service(session: AsyncSession, user: User, service_name: str) -> tuple[bool, str, int]:
-    cost = await get_service_cost(service_name)
+    if user.is_banned:
+        return False, "banned", 0
+    if not await is_service_enabled(session, service_name):
+        return False, "service_disabled", 0
+
+    cost = await get_service_cost(session, service_name)
     if cost <= 0:
         return True, "gratis", 0
 
@@ -204,18 +217,21 @@ async def record_service_use(
 async def consume_service_points(session: AsyncSession, user: User, service_name: str) -> tuple[bool, str]:
     allowed, reason, cost = await can_use_service(session, user, service_name)
     if not allowed:
-        return False, f"الرصيد غير كافٍ. يلزم {cost} نقطة."
+        return False, reason
+
+    if cost <= 0:
+        return True, "gratis"
 
     daily_remaining = await get_remaining_daily_credit(session, user.id)
     if daily_remaining > 0:
         used_from_daily = min(daily_remaining, cost)
         used_from_balance = max(0, cost - used_from_daily)
-        user.balance -= used_from_balance
+        user.balance = max(0, user.balance - used_from_balance)
         await record_service_use(session, user, service_name, "success", used_from_daily)
         await session.commit()
         return True, "daily_credit" if used_from_balance == 0 else "mixed"
 
-    user.balance -= cost
+    user.balance = max(0, user.balance - cost)
     await record_service_use(session, user, service_name, "success", cost)
     await session.commit()
     return True, "balance"
@@ -242,7 +258,7 @@ async def create_referral(session: AsyncSession, referrer: User, invitee: User) 
         Referral(
             referrer_id=referrer.id,
             invitee_id=invitee.id,
-            reward_points=int(await get_system_value(session, \"referral_bonus\", str(settings.REFERRAL_BONUS))),
+            reward_points=int(await get_system_value(session, "referral_bonus", str(settings.REFERRAL_BONUS))),
             reward_awarded=False,
         )
     )
@@ -255,7 +271,7 @@ async def award_referral_bonus(session: AsyncSession, referrer: User, invitee: U
     referral = result.scalar_one_or_none()
     if referral is None or referral.reward_awarded:
         return False
-    bonus = int(await get_system_value(session, \"referral_bonus\", str(settings.REFERRAL_BONUS)))
+    bonus = int(await get_system_value(session, "referral_bonus", str(settings.REFERRAL_BONUS)))
     referrer.balance += bonus
     referral.reward_awarded = True
     await session.commit()
@@ -270,7 +286,7 @@ async def handle_start_with_referral(session: AsyncSession, user: User, code: Op
     if not referrer or referrer.id == user.id or user.referred_by is not None:
         return
     if await create_referral(session, referrer, user):
-        threshold = int(await get_system_value(session, \"referral_threshold\", str(settings.REFERRAL_THRESHOLD)))
+        threshold = int(await get_system_value(session, "referral_threshold", str(settings.REFERRAL_THRESHOLD)))
         if threshold <= 1:
             await award_referral_bonus(session, referrer, user)
 
@@ -280,19 +296,33 @@ async def is_admin_chat_id(chat_id: int) -> bool:
 
 
 async def set_daily_credit(session: AsyncSession, value: int) -> int:
+    if value < 0:
+        raise ValueError("FREE_DAILY_CREDIT must be >= 0")
     await set_system_setting(session, "daily_free_credit", str(value))
     return value
 
 
 async def set_service_cost(session: AsyncSession, service_name: str, value: int) -> int:
+    if value < 0:
+        raise ValueError("Service cost must be >= 0")
     await set_system_setting(session, f"service_cost:{service_name}", str(value))
     return value
 
 
 async def toggle_service(session: AsyncSession, service_name: str, enabled: bool) -> bool:
-    await set_system_setting(session, f"service_enabled:{service_name}", str(int(enabled)))
+    await set_system_setting(session, f"service_enabled:{service_name}", "1" if enabled else "0")
     return enabled
 
 
-async def broadcast_message(session: AsyncSession, message: str) -> None:
-    pass
+async def broadcast_message(session: AsyncSession, bot, text: str) -> dict[str, int]:
+    result = await session.execute(select(User))
+    users = result.scalars().all()
+    success = 0
+    failed = 0
+    for user in users:
+        try:
+            await bot.send_message(chat_id=user.telegram_id, text=text)
+            success += 1
+        except Exception:
+            failed += 1
+    return {"success": success, "failed": failed}

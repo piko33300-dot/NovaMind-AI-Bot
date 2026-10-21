@@ -1,3 +1,33 @@
-[pytest]
-pythonpath = .
-asyncio_mode = auto
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.venv/
+venv/
+ENV/
+env/
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Local database / runtime
+*.db
+*.sqlite3
+*.sqlite
+novamind.db
+test_novamind.db
+
+# Tests
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

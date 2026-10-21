@@ -1,22 +1,15 @@
-# Telegram
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-ADMIN_TG_IDS=123456789,987654321
+# Telegram / aiogram
+aiogram==3.13.1
 
-# PostgreSQL
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/novamind
+# Database
+SQLAlchemy==2.0.36
+asyncpg==0.30.0
+aiosqlite==0.21.0
 
-# AI providers
-OPENAI_API_KEY=
-STABILITY_API_KEY=
-REMOVE_BG_API_KEY=
-ELEVENLABS_API_KEY=
+# HTTP / env
+httpx==0.28.1
+python-dotenv==1.0.1
 
-# App settings
-FREE_DAILY_CREDIT=25
-INITIAL_BALANCE=100
-REFERRAL_BONUS=50
-REFERRAL_THRESHOLD=1
-
-# Optional webhook settings
-WEBHOOK_URL=
-WEBHOOK_PATH=/webhook
+# Tests
+pytest==8.3.3
+pytest-asyncio==0.24.0
