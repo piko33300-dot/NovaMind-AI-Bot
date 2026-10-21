@@ -166,3 +166,12 @@ pytest -q
 
 - لا يمكن اختبار الخدمات الخارجية فعليًا بدون مفاتيح API حقيقية.
 - هذا المشروع جاهز للبنية الأساسية والتطوير، لكنه يحتاج إعدادات حقيقية في بيئة الإنتاج لتفعيل الخدمات الفعلية.
+from __future__ import annotations
+
+import asyncio
+
+from app.providers import main
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
