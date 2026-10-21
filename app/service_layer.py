@@ -242,7 +242,7 @@ async def create_referral(session: AsyncSession, referrer: User, invitee: User) 
         Referral(
             referrer_id=referrer.id,
             invitee_id=invitee.id,
-            reward_points=int(await get_system_value(session, "referral_bonus", str(settings.REFERRAL_BONUS))),
+            reward_points=int(await get_system_value(session, \"referral_bonus\", str(settings.REFERRAL_BONUS))),
             reward_awarded=False,
         )
     )
@@ -255,7 +255,7 @@ async def award_referral_bonus(session: AsyncSession, referrer: User, invitee: U
     referral = result.scalar_one_or_none()
     if referral is None or referral.reward_awarded:
         return False
-    bonus = int(await get_system_value(session, "referral_bonus", str(settings.REFERRAL_BONUS)))
+    bonus = int(await get_system_value(session, \"referral_bonus\", str(settings.REFERRAL_BONUS)))
     referrer.balance += bonus
     referral.reward_awarded = True
     await session.commit()
@@ -270,6 +270,29 @@ async def handle_start_with_referral(session: AsyncSession, user: User, code: Op
     if not referrer or referrer.id == user.id or user.referred_by is not None:
         return
     if await create_referral(session, referrer, user):
-        threshold = int(await get_system_value(session, "referral_threshold", str(settings.REFERRAL_THRESHOLD)))
+        threshold = int(await get_system_value(session, \"referral_threshold\", str(settings.REFERRAL_THRESHOLD)))
         if threshold <= 1:
             await award_referral_bonus(session, referrer, user)
+
+
+async def is_admin_chat_id(chat_id: int) -> bool:
+    return chat_id in settings.ADMIN_TG_IDS
+
+
+async def set_daily_credit(session: AsyncSession, value: int) -> int:
+    await set_system_setting(session, "daily_free_credit", str(value))
+    return value
+
+
+async def set_service_cost(session: AsyncSession, service_name: str, value: int) -> int:
+    await set_system_setting(session, f"service_cost:{service_name}", str(value))
+    return value
+
+
+async def toggle_service(session: AsyncSession, service_name: str, enabled: bool) -> bool:
+    await set_system_setting(session, f"service_enabled:{service_name}", str(int(enabled)))
+    return enabled
+
+
+async def broadcast_message(session: AsyncSession, message: str) -> None:
+    pass
