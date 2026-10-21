@@ -1,0 +1,57 @@
+name: NovaMind-AI-Bot Tests
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DATABASE_URL: sqlite+aiosqlite:///./test_novamind.db
+      TELEGRAM_BOT_TOKEN: test_token
+      ADMIN_TG_IDS: 1001,1002
+      FREE_DAILY_CREDIT: "25"
+      INITIAL_BALANCE: "100"
+      REFERRAL_BONUS: "50"
+      REFERRAL_THRESHOLD: "1"
+      WEBHOOK_URL: ""
+      WEBHOOK_PATH: "/webhook"
+      OPENAI_API_KEY: ""
+      STABILITY_API_KEY: ""
+      REMOVE_BG_API_KEY: ""
+      ELEVENLABS_API_KEY: ""
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run compile check
+        run: |
+          python -m compileall -q app tests
+
+      - name: Run test suite
+        run: |
+          python -m pytest -q
