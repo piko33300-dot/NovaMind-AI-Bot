@@ -15,6 +15,10 @@ from app.service_layer import (
     get_user_stats,
     get_remaining_daily_credit,
     is_admin_chat_id,
+    set_daily_credit,
+    set_service_cost,
+    toggle_service,
+    broadcast_message,
 )
 
 router = Router()
@@ -111,6 +115,145 @@ async def admin_stats(message: Message) -> None:
             f"الحد اليومي المتبقي: {stats.get('daily_remaining', 0)}\n"
             f"عدد الإحالات: {stats.get('referrals_count', 0)}"
         )
+
+
+@router.message(Command("set_daily_credit"))
+async def set_daily_credit_command(message: Message) -> None:
+    if not message.from_user:
+        return
+
+    if not is_admin_chat_id(message.from_user.id):
+        await message.answer("❌ هذا الأمر خاص بالمشرفين فقط.")
+        return
+
+    try:
+        value = int(message.get_args()[0])
+    except (IndexError, ValueError):
+        await message.answer("⚠️ استخدم الشكل: /set_daily_credit 25")
+        return
+
+    async with SessionLocal() as session:
+        await set_daily_credit(session, value)
+    await message.answer(f"✅ تم تحديث الحد اليومي إلى {value}.")
+
+
+@router.message(Command("set_service_cost"))
+async def set_service_cost_command(message: Message) -> None:
+    if not message.from_user:
+        return
+
+    if not is_admin_chat_id(message.from_user.id):
+        await message.answer("❌ هذا الأمر خاص بالمشرفين فقط.")
+        return
+
+    try:
+        args = message.get_args()
+        service_name = args[0]
+        cost = int(args[1])
+    except (IndexError, ValueError):
+        await message.answer("⚠️ استخدم الشكل: /set_service_cost image_generation 10")
+        return
+
+    async with SessionLocal() as session:
+        await set_service_cost(session, service_name, cost)
+    await message.answer(f"✅ تم تحديث تكلفة الخدمة {service_name} إلى {cost}.")
+
+
+@router.message(Command("toggle_service"))
+async def toggle_service_command(message: Message) -> None:
+    if not message.from_user:
+        return
+
+    if not is_admin_chat_id(message.from_user.id):
+        await message.answer("❌ هذا الأمر خاص بالمشرفين فقط.")
+        return
+
+    try:
+        args = message.get_args()
+        service_name = args[0]
+        state = args[1].lower()
+    except (IndexError, ValueError):
+        await message.answer("⚠️ استخدم الشكل: /toggle_service image_generation off")
+        return
+
+    enabled = state in {"on", "1", "true", "yes"}
+    async with SessionLocal() as session:
+        await toggle_service(session, service_name, enabled)
+    await message.answer(f"✅ تم تحديث حالة الخدمة {service_name} إلى {'مفعلة' if enabled else 'معطلة'}.")
+
+
+@router.message(Command("broadcast"))
+async def broadcast_command(message: Message) -> None:
+    if not message.from_user:
+        return
+
+    if not is_admin_chat_id(message.from_user.id):
+        await message.answer("❌ هذا الأمر خاص بالمشرفين فقط.")
+        return
+
+    args = message.get_args()
+    if not args:
+        await message.answer("⚠️ استخدم الشكل: /broadcast رسالة عامة")
+        return
+
+    text = " ".join(args)
+    async with SessionLocal() as session:
+        await broadcast_message(session, text)
+    await message.answer("✅ تم إرسال الرسالة العامة.")
+
+
+@router.message(Command("ban"))
+async def ban_command(message: Message) -> None:
+    if not message.from_user:
+        return
+
+    if not is_admin_chat_id(message.from_user.id):
+        await message.answer("❌ هذا الأمر خاص بالمشرفين فقط.")
+        return
+
+    try:
+        user_id = int(message.get_args()[0])
+    except (IndexError, ValueError):
+        await message.answer("⚠️ استخدم الشكل: /ban 123456789")
+        return
+
+    async with SessionLocal() as session:
+        result = await session.execute(select(User).where(User.telegram_id == user_id))
+        target = result.scalar_one_or_none()
+        if target is None:
+            await message.answer("⚠️ هذا المستخدم غير موجود.")
+            return
+
+        target.is_banned = True
+        await session.commit()
+    await message.answer(f"✅ تم حظر المستخدم {user_id}.")
+
+
+@router.message(Command("unban"))
+async def unban_command(message: Message) -> None:
+    if not message.from_user:
+        return
+
+    if not is_admin_chat_id(message.from_user.id):
+        await message.answer("❌ هذا الأمر خاص بالمشرفين فقط.")
+        return
+
+    try:
+        user_id = int(message.get_args()[0])
+    except (IndexError, ValueError):
+        await message.answer("⚠️ استخدم الشكل: /unban 123456789")
+        return
+
+    async with SessionLocal() as session:
+        result = await session.execute(select(User).where(User.telegram_id == user_id))
+        target = result.scalar_one_or_none()
+        if target is None:
+            await message.answer("⚠️ هذا المستخدم غير موجود.")
+            return
+
+        target.is_banned = False
+        await session.commit()
+    await message.answer(f"✅ تم إلغاء حظر المستخدم {user_id}.")
 
 
 @router.message(F.text.in_({
